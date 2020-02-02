@@ -70,10 +70,10 @@ async def display_attribute(attribute, channel=None):
         for guildMember in channel.guild.members:
             if guildMember.mention == databaseMember:
                 score = data["accumulated"] / data["count"]
-                ranking.append((guildMember.nick,score))
-    sorted(ranking)
+                ranking.append((score,guildMember.nick))
+    ranking = sorted(ranking, key=lambda x: x[0], reverse=True)
     for ranker in ranking:
-        to_send += "{:.3f}".format(ranker[1]) + " | " + ranker[0] + "\n"
+        to_send += "{:.3f}".format(ranker[0]) + " | " + ranker[1] + "\n"
     to_send += "```"
     await channel.send(content=to_send)
 
@@ -84,12 +84,13 @@ async def random_ranking_loop():
 async def random_ranking():
     keys = list(database.keys())
     if len(keys) > 0:
-        index = randint(0, len(keys))
+        index = randint(0, len(keys)-1)
         loop.create_task(display_attribute(keys[index]))
 
 @client.event
 async def on_ready():
     calculate_metrics.start()
+    random_ranking_loop.start()
 
 
 @client.event
