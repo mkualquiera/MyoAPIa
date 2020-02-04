@@ -1,2 +1,2 @@
 # MyoAPIa
-An Orwellian Discord Bot that actively listens to your conversations and tells you how toxic you are. Powered by Big Brother Google.
+An Orwellian Discord Bot that you can ping and it will tell you how toxic your message is. Powered by Big Brother Google.
