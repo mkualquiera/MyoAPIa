@@ -21,10 +21,12 @@ database = {}
 
 loop = asyncio.get_event_loop()
 
-@tasks.loop(seconds=1.2)
+'''@tasks.loop(seconds=1.2)
 async def calculate_metrics():
     if not message_queue.empty():
         message_to_eval = message_queue.get()
+        if message_to_eval[1] == '':
+            return
         print("evaluating message", message_to_eval)
         url = ('https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze' +
             '?key=' + api_key)
@@ -44,10 +46,9 @@ async def calculate_metrics():
                 database[attribute] = {}
             if not message_to_eval[0] in database[attribute]:
                 database[attribute][message_to_eval[0]] = {}
-                database[attribute][message_to_eval[0]]["accumulated"] = 0
-                database[attribute][message_to_eval[0]]["count"] = 0
-            database[attribute][message_to_eval[0]]["accumulated"] += data['summaryScore']['value']
-            database[attribute][message_to_eval[0]]["count"] += 1
+                database[attribute][message_to_eval[0]]["average"] = data['summaryScore']['value']
+            else:
+                database[attribute][message_to_eval[0]]["average"] = data['summaryScore']['value'] * 0.18 + database[attribute][message_to_eval[0]]["average"] * (1.0 - 0.18)
             print("done")
         print("processed attributes")
         print(database)
@@ -69,8 +70,8 @@ async def display_attribute(attribute, channel=None):
     for databaseMember, data in database[attribute].items():
         for guildMember in channel.guild.members:
             if guildMember.mention == databaseMember:
-                score = data["accumulated"] / data["count"]
-                ranking.append((score,guildMember.nick))
+                score = data["average"]
+                ranking.append((score,guildMember.display_name))
     ranking = sorted(ranking, key=lambda x: x[0], reverse=True)
     for ranker in ranking:
         to_send += "{:.3f}".format(ranker[0]) + " | " + ranker[1] + "\n"
@@ -90,8 +91,29 @@ async def random_ranking():
 @client.event
 async def on_ready():
     calculate_metrics.start()
-    random_ranking_loop.start()
+    random_ranking_loop.start()'''
 
+def evaluate_message(message_to_eval):
+    if message_to_eval == '':
+        return
+    print("evaluating message", message_to_eval)
+    url = ('https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze' +
+        '?key=' + api_key)
+    data_dict = {
+        'comment': {'text': message_to_eval},
+        'languages': ['en'],
+        'requestedAttributes': {'TOXICITY': {}, 'INSULT': {}, 'PROFANITY': {}, 'THREAT': {}, 'SEXUALLY_EXPLICIT':{}, 'FLIRTATION':{}}
+    }
+    print("sent request")
+    response = requests.post(url=url, data=json.dumps(data_dict))
+    response_dict = json.loads(response.content)
+    print("parsed response")
+    attributes_string = ""
+    #response_dict['attributeScores']['PROFANITY']['summaryScore']['value']
+    for attribute, data in response_dict['attributeScores'].items():
+        attributes_string += attribute + " : " + str(response_dict['attributeScores'][attribute]['summaryScore']['value']) + "\n"
+    print("done")
+    return attributes_string
 
 @client.event
 async def on_message(message):
@@ -99,7 +121,14 @@ async def on_message(message):
         return
 
     bits = message.content.split(" ")
-    if len(bits) == 1:
+    if len(bits) > 0:
+        if bits[0].replace("!","") == client.user.mention.replace("!",""):
+            actual_message = message.content[len(client.user.mention):]
+            result = evaluate_message(actual_message)
+            result = "Attributes for this message: ```" + result + "```"
+            await message.channel.send(content=result)
+            return
+    '''if len(bits) == 1:
         if bits[0] == "!attributes":
             to_send = "Available attributes: ```"
             for attr in database.keys():
@@ -122,7 +151,7 @@ async def on_message(message):
 
     message_object = (message.author.mention, message.content)
     message_queue.put(message_object)
-    print(message_object)
+    print(message_object)'''
 
 
 client.run(token)
